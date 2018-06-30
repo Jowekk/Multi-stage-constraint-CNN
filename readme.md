@@ -4,9 +4,12 @@ a Multi-stage constraint CNN based on tensorflow, Using weak supervision methods
 
 ## Basic Network Structure
 
-![幻灯片1](/home/yangqiao/Documents/fine_grained/my_code/Multi-stage-constraint-CNN/幻灯片1.PNG)
+![](https://github.com/Jowekk/Multi-stage-constraint-CNN/blob/master/network_structure.PNG)
 
 
 ## Prerequisites
 
-~~~ Tensorflow >= 1.4.0
+~~~ 
+Tensorflow >= 1.4.0
+~~~
+
