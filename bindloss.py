@@ -2,11 +2,10 @@ import tensorflow as tf
 import numpy as np
 from param import batch_size, group_num
 
-def group_loss(net):
+def dis_loss(net):
 
-    image_size = 8 
-
-# distance loss
+    # distance loss
+    image_size = net.get_shape()[1]
     net_flat = tf.reshape(net, [batch_size, image_size*image_size, group_num])
     max_index = tf.argmax(net_flat, axis=1)
 
@@ -31,8 +30,11 @@ def group_loss(net):
     dis_sum = tf.divide(dis_sum, batch_size)
     dis_sum = tf.divide(dis_sum, 100)
 
+    return dis_sum
 
-# div loss
+def div_loss(net):
+
+    # div loss
     margin = tf.constant(2e-4, shape=[1])
     list_0 = [tf.expand_dims(net[:,:,:,1], axis=3), tf.expand_dims(net[:,:,:,2], axis=3), tf.expand_dims(net[:,:,:,3], axis=3)]
     list_1 = [tf.expand_dims(net[:,:,:,0], axis=3), tf.expand_dims(net[:,:,:,2], axis=3), tf.expand_dims(net[:,:,:,3], axis=3)]
@@ -47,31 +49,21 @@ def group_loss(net):
     div_sum = tf.divide(tf.reduce_sum(div_temp, axis=[0,1,2]), batch_size)
     div_sum = tf.multiply(div_sum, 0.2)
 
+    return div_sum
+
+def bind_loss(net):
+
+    dis_sum = dis_loss(net)
+    
+    div_sum = div_loss(net)
+
     d_loss = tf.add(dis_sum, div_sum)
-    #d_loss = dis_sum
 
     tf.summary.scalar('dis_sum', dis_sum)
     tf.summary.scalar('div_sum', div_sum)
 
     return d_loss
    
-
-
-'''
-
-    dis_list = list()
-    for b in range(batch_size):
-        for x_i in range(image_size):
-            for y_i in range(image_size):
-                for g in range(group_num):
-                    x_max = x_index[b,g]
-                    y_max = y_index[b,g]
-                    distance = tf.cast(tf.add(tf.pow((x_i-x_max),2), tf.pow((y_i-y_max),2)), dtype=tf.float32)
-                    dis_list.append(tf.multiply(net[b,x_max,y_max,g], distance))
-    dis_sum = tf.reduce_sum(tf.stack(dis_list), 0)
-    dis_sum = tf.divide(dis_sum, batch_size)
-
-'''
     
 
 

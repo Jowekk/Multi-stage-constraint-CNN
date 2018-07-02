@@ -3,7 +3,9 @@ from tensorflow.contrib.framework.python.ops.variables import get_or_create_glob
 from tensorflow.python.platform import tf_logging as logging
 from load_data.load_data import get_split, load_batch
 from network.inception_resnet_v2 import inception_resnet_v2_arg_scope, inception_resnet_v2
+from bindloss import bind_loss
 from param import *
+
 
 import time
 import os
@@ -44,12 +46,8 @@ with tf.Graph().as_default() as graph:
     loss_2 = tf.losses.softmax_cross_entropy(onehot_labels = one_hot_labels, logits = end_points['Logits_2'])
     loss_3 = tf.losses.softmax_cross_entropy(onehot_labels = one_hot_labels, logits = end_points['Logits_3'])
 
-    loss = loss_0 + loss_1 + loss_2 + loss_3
+    b_loss = bind_loss(end_point['group'])
 
-    dif_loss = end_points['dif_loss']
-    dis_loss = end_points['dis_loss']
-
-    limit_loss = tf.add(dif_loss, dis_loss)
 
     global_step = get_or_create_global_step()
 
@@ -80,22 +78,32 @@ with tf.Graph().as_default() as graph:
     my_summary_op = tf.summary.merge_all()
 
     all_vars =  tf.trainable_variables()
-    first_train_vars = [var for var in all_vars if not var.name.startswith(mask_vars)]
-    second_train_vars = [var for var in all_vars if var.name.startswith(mask_vars)]
+    first_train_vars = [var for var in all_vars if  var.name.startswith(mask_vars)]
+    second_train_vars = [var for var in all_vars if not var.name.startswith(mask_vars)]
 
 
-    optimizer_1 = tf.train.AdamOptimizer(learning_rate = 5e-4)
-    train_op_1 = slim.learning.create_train_op(loss, optimizer_1, variables_to_train = first_train_vars)
+    optimizer_1 = tf.train.AdamOptimizer(learning_rate = 5e-5)
+    train_op_1 = slim.learning.create_train_op(b_loss, optimizer_1, variables_to_train = first_train_vars)
 
     optimizer_2 = tf.train.AdamOptimizer(learning_rate = lr)
-    train_op_2 = slim.learning.create_train_op(limit_loss, optimizer_2 , variables_to_train = second_train_vars)
+    train_op_2 = slim.learning.create_train_op(loss_0, optimizer_2 , variables_to_train = second_train_vars)
+
+    optimizer_3 = tf.train.AdamOptimizer(learning_rate = lr)
+    train_op_3 = slim.learning.create_train_op(loss_1, optimizer_3 , variables_to_train = second_train_vars)
+
+    optimizer_4 = tf.train.AdamOptimizer(learning_rate = lr)
+    train_op_4 = slim.learning.create_train_op(loss_2, optimizer_4 , variables_to_train = second_train_vars)
+
+    optimizer_5 = tf.train.AdamOptimizer(learning_rate = lr)
+    train_op_5 = slim.learning.create_train_op(loss_3, optimizer_5 , variables_to_train = second_train_vars)
+
 
     def train_step(sess, train_op, global_step, flag):
         start_time = time.time()
         total_loss, global_step_count, _,_,_,_ = sess.run([train_op, global_step, metrics_op_0, metrics_op_1, metrics_op_2, metrics_op_3])
         time_elapsed = time.time() - start_time
 
-        if flag == 1:
+        if flag == 2:
             loss_flag = 'MLP'
         else:
             loss_flag = 'limit'
@@ -118,11 +126,14 @@ with tf.Graph().as_default() as graph:
 	        summaries = sess.run(my_summary_op)
 	        sv.summary_computed(sess, summaries)
 
-            if (step % 2000) < 1500:
+            if (step % 1000) > 100:
 
                 Loss_, _ = train_step(sess, train_op_1, sv.global_step, flag=1)
             else:
                 Loss_, _ = train_step(sess, train_op_2, sv.global_step, flag=2)
+                Loss_, _ = train_step(sess, train_op_3, sv.global_step, flag=2)
+                Loss_, _ = train_step(sess, train_op_4, sv.global_step, flag=2)
+                Loss_, _ = train_step(sess, train_op_5, sv.global_step, flag=2)
 
 
         logging.info('Final Loss: %s', loss)

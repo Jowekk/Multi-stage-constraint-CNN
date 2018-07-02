@@ -1,10 +1,9 @@
 import tensorflow as tf
 slim = tf.contrib.slim
 
+def SE_layer(net, layer_name):
 
-def group_function(net, end_points, num_classes, dropout_keep_prob, is_training, layer_name):
-
-  with tf.variable_scope('group') :
+  with tf.variable_scope('regroup') :
 
     net = slim.avg_pool2d(net, net.get_shape()[1:3], padding='VALID',
                         scope='AvgPool_1a_8x8' + layer_name)
@@ -16,12 +15,18 @@ def group_function(net, end_points, num_classes, dropout_keep_prob, is_training,
     excitation = slim.dropout(excitation, dropout_keep_prob, is_training=is_training, scope='Dropout_2' + layer_name)
     excitation = tf.nn.sigmoid(excitation, name = layer_name + '_sigmoid')
 
-    excitation = tf.reshape(excitation, shape=(-1,1,1,36))
+    excitation = tf.reshape(excitation, shape=(-1,1,1,int(net.get_shape()[3])))
     
     net = tf.multiply(net, excitation)
-    end_points['group'] = net
 
-  with tf.variable_scope('Log') :
+    return net
+
+def logits_group(net, end_points, num_classes, dropout_keep_prob, is_training, layer_name):
+
+    net = SE_layer(net, layer_name)
+    end_points['group'+layer_name] = tf.reduce_mean(net,axix=3, keep_dims=True)
+
+  with tf.variable_scope('Logits') :
     net = slim.avg_pool2d(net, net.get_shape()[1:3], padding='VALID',
                         scope='AvgPool_1a_8x8' + layer_name)
     net = slim.flatten(net)
@@ -34,5 +39,6 @@ def group_function(net, end_points, num_classes, dropout_keep_prob, is_training,
     end_points['Logits'+layer_name] = logits
     end_points['Predictions'+layer_name] = tf.nn.softmax(logits, name='Predictions' + layer_name)
 
-
   return end_points
+
+
