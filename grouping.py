@@ -1,32 +1,36 @@
 import tensorflow as tf
+from tools import gauss
 slim = tf.contrib.slim
 
-def SE_layer(net, layer_name):
+def SE_layer(net, layer_name,dropout_keep_prob,  is_training):
 
-  with tf.variable_scope('regroup') :
+  net_buffer = net
+  net_shapes = net.get_shape().as_list()
 
-    net = slim.avg_pool2d(net, net.get_shape()[1:3], padding='VALID',
-                        scope='AvgPool_1a_8x8' + layer_name)
+  with tf.variable_scope('regroup'):
 
-    excitation = slim.fully_connected(net, int(net.get_shape()[3]/2), activation_fn=None, scope=layer_name+'_fully_connected1')
+    net = slim.avg_pool2d(net, net.get_shape()[1:3], padding='VALID', scope='AvgPool_1a_8x8' + layer_name)
+
+    excitation = slim.fully_connected(net, int(net_shapes[3]/2.0), activation_fn=None, scope=layer_name+'_fully_connected1')
     excitation = tf.nn.relu(excitation, name = layer_name + '_relu')
     excitation = slim.dropout(excitation, dropout_keep_prob, is_training=is_training, scope='Dropout_1' + layer_name)
-    excitation = slim.fully_connected(excitation, int(net.get_shape()[3]),  activation_fn=None, scope=layer_name+'_fully_connected2')
+    excitation = slim.fully_connected(excitation, int(net_shapes[3]),  activation_fn=None, scope=layer_name+'_fully_connected2')
     excitation = slim.dropout(excitation, dropout_keep_prob, is_training=is_training, scope='Dropout_2' + layer_name)
     excitation = tf.nn.sigmoid(excitation, name = layer_name + '_sigmoid')
 
     excitation = tf.reshape(excitation, shape=(-1,1,1,int(net.get_shape()[3])))
     
-    net = tf.multiply(net, excitation)
+    net = tf.multiply(net_buffer, excitation)
 
-    return net
+  return net
 
 def logits_group(net, end_points, num_classes, dropout_keep_prob, is_training, layer_name):
 
-    net = SE_layer(net, layer_name)
-    end_points['group'+layer_name] = tf.reduce_mean(net,axix=3, keep_dims=True)
+  net = SE_layer(net, layer_name, dropout_keep_prob=dropout_keep_prob, is_training= is_training)
+  net_temp = tf.reduce_mean(net,axis=3, keep_dims=True)
+  end_points['group' + layer_name] = gauss(net_temp, layer_name='gauss_log'+layer_name)
 
-  with tf.variable_scope('Logits') :
+  with tf.variable_scope('Logits'):
     net = slim.avg_pool2d(net, net.get_shape()[1:3], padding='VALID',
                         scope='AvgPool_1a_8x8' + layer_name)
     net = slim.flatten(net)

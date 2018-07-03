@@ -3,7 +3,7 @@ from tensorflow.contrib.framework.python.ops.variables import get_or_create_glob
 from tensorflow.python.platform import tf_logging as logging
 from load_data.load_data import get_split, load_batch
 from network.inception_resnet_v2 import inception_resnet_v2_arg_scope, inception_resnet_v2
-from bindloss import bind_loss
+from loss import get_constraint_loss
 from param import *
 
 
@@ -46,16 +46,14 @@ with tf.Graph().as_default() as graph:
     loss_2 = tf.losses.softmax_cross_entropy(onehot_labels = one_hot_labels, logits = end_points['Logits_2'])
     loss_3 = tf.losses.softmax_cross_entropy(onehot_labels = one_hot_labels, logits = end_points['Logits_3'])
 
-    b_loss = bind_loss(end_point['group'])
-
-
+    c_loss = get_constraint_loss(end_points)
+    
     global_step = get_or_create_global_step()
 
     num_batches_per_epoch = int(train_img_num / batch_size)
     num_steps_per_epoch = num_batches_per_epoch
 
     decay_steps = int(num_epochs_before_decay * num_steps_per_epoch)
-
 
     lr = tf.train.exponential_decay(
             learning_rate = initial_learning_rate,
@@ -65,8 +63,6 @@ with tf.Graph().as_default() as graph:
             staircase = True)
 
     tf.summary.scalar('learning_rate', lr)
-    tf.summary.scalar('dif_loss', dif_loss)
-    tf.summary.scalar('dis_loss', dis_loss)
     tf.summary.scalar('loss_0', loss_0)
     tf.summary.scalar('loss_1', loss_1)
     tf.summary.scalar('loss_2', loss_2)
@@ -78,12 +74,12 @@ with tf.Graph().as_default() as graph:
     my_summary_op = tf.summary.merge_all()
 
     all_vars =  tf.trainable_variables()
-    first_train_vars = [var for var in all_vars if  var.name.startswith(mask_vars)]
-    second_train_vars = [var for var in all_vars if not var.name.startswith(mask_vars)]
+    first_train_vars = [var for var in all_vars if  var.name.startswith(group_vars)]
+    second_train_vars = [var for var in all_vars if not var.name.startswith(group_vars)]
 
 
     optimizer_1 = tf.train.AdamOptimizer(learning_rate = 5e-5)
-    train_op_1 = slim.learning.create_train_op(b_loss, optimizer_1, variables_to_train = first_train_vars)
+    train_op_1 = slim.learning.create_train_op(c_loss, optimizer_1, variables_to_train = first_train_vars)
 
     optimizer_2 = tf.train.AdamOptimizer(learning_rate = lr)
     train_op_2 = slim.learning.create_train_op(loss_0, optimizer_2 , variables_to_train = second_train_vars)
@@ -136,7 +132,6 @@ with tf.Graph().as_default() as graph:
                 Loss_, _ = train_step(sess, train_op_5, sv.global_step, flag=2)
 
 
-        logging.info('Final Loss: %s', loss)
         logging.info('Finished training! Saving model to disk now.')
         sv.saver.save(sess, sv.save_path, global_step = sv.global_step)
 

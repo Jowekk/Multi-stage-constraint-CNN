@@ -27,7 +27,7 @@ from __future__ import print_function
 #from expressway import expressway_net
 import tensorflow as tf
 from param import group_num, batch_size
-from grouping import group_function, SE_layer
+from grouping import logits_group, SE_layer
 from tools import gauss
 
 slim = tf.contrib.slim
@@ -144,7 +144,7 @@ def inception_resnet_v2(inputs, num_classes=1001, is_training=True,
         net = slim.conv2d(net, 192, 3, padding='VALID',
                           scope='Conv2d_4a_3x3')
         
-        net =SE_layer(net, '4a')
+        net =SE_layer(net, '4a', dropout_keep_prob,  is_training)
  
         end_points['Conv2d_4a_3x3'] = net
 
@@ -230,25 +230,9 @@ def inception_resnet_v2(inputs, num_classes=1001, is_training=True,
         # bitch_size * 8 * 8 * 1536
         end_points['PrePool'] = net
 # my_code
-        quart_num_log = net.get_shape()[3] / 4
+        quart_num_log = int(net.get_shape().as_list()[3]/ 4.0)
         for i in range(group_num):
-          end_points = logits_group(net[:,:,:,i*quart_num_log:(i+1)*quart_num_log], end_points, num_classes, dropout_keep_prob, is_training, '_'+str(i))
-        bind_net = tf.concat([end_points['group_0'], end_points['group_1'], end_points['group_2'], end_points['group_3']], axis=3)
-        end_points['group'] = gauss(bind_net, layer_name= 'gauss_logits')
-
-        sm_loss_list = list()
-        quart_list = list()
-        quart_num_4a = end_points['Conv2d_4a_3x3'].get_shape()[3] / 4
-        for i in range(group_num):
-          temp_quart = net[:,:,:,i*quart_num_4a:(i+1)*quart_num_4a]
-          quart_num_quart = quart_num_4a / 4
-          for j  in range(group_num):
-            q_to_q_net = temp_quart[:,:,:,j*quart_num_quart:(j+1)*quart_num_quart]
-            quart_list.append(tf.reduce_mean(q_to_q_net, axis=3, keep_dims=True))
-          quart_net = tf.concat(quart_list, axis=3)
-          quart_net = gauss(quart_net, layer_ name='gauss_4a_' + str(i))
-          sm_loss_list.append(similar_loss(quart_net, bind_net[:,:,:,i]))
-        sm_loss = tf.reduce_sum(tf.concat(sm_loss_list, axis=0))            
+          end_points = logits_group(net[:,:,:,i*quart_num_log:(i+1)*quart_num_log], end_points, num_classes, dropout_keep_prob, is_training, '_'+str(i))          
 # my_code
 
           

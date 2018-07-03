@@ -14,9 +14,9 @@ items_to_descriptions = {
 
 #----------------log and checkpoint------------#
 log_dir = '../data/MSCNN/log'
-checkpoint_file = './checkpoints/model.ckpt-0'#'./checkpoints/inception_resnet_v2_2016_08_30.ckpt'
-exclude_list =  ['InceptionResnetV2/Logits', 'InceptionResnetV2/Location', 'InceptionResnetV2/group_map']
-group_vars = 'InceptionResnetV2/group_map'
+checkpoint_file = '../data/checkpoints/model.ckpt-0'#'./checkpoints/inception_resnet_v2_2016_08_30.ckpt'
+exclude_list =  ['InceptionResnetV2/Logits', 'InceptionResnetV2/regroup']
+group_vars = 'InceptionResnetV2/regroup'
 
 
 #----------------net information---------------#
