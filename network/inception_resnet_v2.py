@@ -27,7 +27,8 @@ from __future__ import print_function
 #from expressway import expressway_net
 import tensorflow as tf
 from param import group_num, batch_size
-from grouping import logits_group, SE_layer
+from grouping import frontend_group, backend_group
+from network.bypass_net import bypass
 from tools import gauss
 
 slim = tf.contrib.slim
@@ -121,6 +122,12 @@ def inception_resnet_v2(inputs, num_classes=1001, is_training=True,
       with slim.arg_scope([slim.conv2d, slim.max_pool2d, slim.avg_pool2d],
                           stride=1, padding='SAME'):
 
+#my_code
+        temp_bypass = bypass(inputs)
+        temp_bypass =frontend_group(temp_bypass, dropout_keep_prob=dropout_keep_prob,  is_training=is_training)
+        end_points['by_pass'] = temp_bypass
+#my_code
+
         # 149 x 149 x 32
         net = slim.conv2d(inputs, 32, 3, stride=2, padding='VALID',
                           scope='Conv2d_1a_3x3')
@@ -143,8 +150,9 @@ def inception_resnet_v2(inputs, num_classes=1001, is_training=True,
         # 71 x 71 x 192
         net = slim.conv2d(net, 192, 3, padding='VALID',
                           scope='Conv2d_4a_3x3')
-        
-        net =SE_layer(net, '4a', dropout_keep_prob,  is_training)
+#my_code
+        net = tf.add(net, temp_bypass)
+#my_code
  
         end_points['Conv2d_4a_3x3'] = net
 
@@ -175,7 +183,7 @@ def inception_resnet_v2(inputs, num_classes=1001, is_training=True,
           net = tf.concat(axis=3, values=[tower_conv, tower_conv1_1,
                               tower_conv2_2, tower_pool_1])
 
-        end_points['Mixed_5b'] = net
+        end_points['Mixed_5b'] = net  # 35 * 35
         net = slim.repeat(net, 10, block35, scale=0.17)
 
         # 17 x 17 x 1024
@@ -195,8 +203,13 @@ def inception_resnet_v2(inputs, num_classes=1001, is_training=True,
                                          scope='MaxPool_1a_3x3')
           net = tf.concat(axis=3, values=[tower_conv, tower_conv1_2, tower_pool])
 
-        end_points['Mixed_6a'] = net
+        end_points['Mixed_6a'] = net         # 17 x 17 x 1024
         net = slim.repeat(net, 20, block17, scale=0.10)
+
+# my_code
+        end_points['temp'] = net
+        net = backend_group(net, end_points,  dropout_keep_prob=dropout_keep_prob,  is_training=is_training)         
+# my_code
 
         with tf.variable_scope('Mixed_7a'):
           with tf.variable_scope('Branch_0'):
@@ -219,7 +232,7 @@ def inception_resnet_v2(inputs, num_classes=1001, is_training=True,
           net = tf.concat(axis=3, values=[tower_conv_1, tower_conv1_1,
                               tower_conv2_2, tower_pool])
 
-        end_points['Mixed_7a'] = net 
+        end_points['Mixed_7a'] = net  #  8 * 8
         
         net = slim.repeat(net, 9, block8, scale=0.20) #TODO
         net = block8(net, activation_fn = None)
@@ -227,14 +240,20 @@ def inception_resnet_v2(inputs, num_classes=1001, is_training=True,
         net = slim.conv2d(net, 1536, 1, scope='Conv2d_7b_1x1')
         end_points['Conv2d_7b_1x1'] = net
 
-        # bitch_size * 8 * 8 * 1536
-        end_points['PrePool'] = net
-# my_code
-        quart_num_log = int(net.get_shape().as_list()[3]/ 4.0)
-        for i in range(group_num):
-          end_points = logits_group(net[:,:,:,i*quart_num_log:(i+1)*quart_num_log], end_points, num_classes, dropout_keep_prob, is_training, '_'+str(i))          
-# my_code
+        with tf.variable_scope('Logits'):
+          # bitch_size * 8 * 8 * 1536
+          end_points['PrePool'] = net
+          net = slim.avg_pool2d(net, net.get_shape()[1:3], padding='VALID',
+                        scope='AvgPool_1a_8x8') # + layer_name
+          net = slim.flatten(net)
 
+          net = slim.dropout(net, dropout_keep_prob, is_training=is_training,
+                     scope='Dropout') #  + layer_name
+
+          logits = slim.fully_connected(net, num_classes, activation_fn=None,
+                                scope='Logits') #  + layer_name
+          end_points['Logits'] = logits # +layer_name
+          end_points['Predictions'] = tf.nn.softmax(logits, name='Predictions' ) # +layer_name  + layer_name
           
     return end_points
 

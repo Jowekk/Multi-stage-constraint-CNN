@@ -15,7 +15,7 @@ items_to_descriptions = {
 #----------------log and checkpoint------------#
 log_dir = '../data/MSCNN/log'
 checkpoint_file = '../data/checkpoints/model.ckpt-0'#'./checkpoints/inception_resnet_v2_2016_08_30.ckpt'
-exclude_list =  ['InceptionResnetV2/Logits', 'InceptionResnetV2/regroup']
+exclude_list =  ['InceptionResnetV2/Logits', 'InceptionResnetV2/regroup', 'InceptionResnetV2/bypass']
 group_vars = 'InceptionResnetV2/regroup'
 
 
@@ -28,7 +28,7 @@ learning_rate_decay_factor = 0.95
 num_epochs_before_decay = 10
 
 batch_size = 16
-num_epochs = 25000
+num_epochs = 250000
 
 num_batches_per_epoch = int(train_img_num / batch_size)
 num_steps_per_epoch = num_batches_per_epoch 

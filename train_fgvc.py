@@ -26,25 +26,13 @@ with tf.Graph().as_default() as graph:
 
     variables_to_restore = slim.get_variables_to_restore(exclude = exclude_list)
 
-    accuracy_0, accuracy_update_0 = tf.contrib.metrics.streaming_accuracy(tf.argmax(end_points['Predictions_0'], 1), labels)
-    metrics_op_0 = tf.group(accuracy_update_0, end_points['Predictions_0'])
-
-    accuracy_1, accuracy_update_1 = tf.contrib.metrics.streaming_accuracy(tf.argmax(end_points['Predictions_1'], 1), labels)
-    metrics_op_1 = tf.group(accuracy_update_1, end_points['Predictions_1'])
-
-    accuracy_2, accuracy_update_2 = tf.contrib.metrics.streaming_accuracy(tf.argmax(end_points['Predictions_2'], 1), labels)
-    metrics_op_2 = tf.group(accuracy_update_2, end_points['Predictions_2'])
-
-    accuracy_3, accuracy_update_3 = tf.contrib.metrics.streaming_accuracy(tf.argmax(end_points['Predictions_3'], 1), labels)
-    metrics_op_3 = tf.group(accuracy_update_3, end_points['Predictions_3'])
+    accuracy_0, accuracy_update_0 = tf.contrib.metrics.streaming_accuracy(tf.argmax(end_points['Predictions'], 1), labels)
+    metrics_op_0 = tf.group(accuracy_update_0, end_points['Predictions'])
 
     one_hot_labels = slim.one_hot_encoding(labels, dataset.num_classes)
 
 # TODO
-    loss_0 = tf.losses.softmax_cross_entropy(onehot_labels = one_hot_labels, logits = end_points['Logits_0'])
-    loss_1 = tf.losses.softmax_cross_entropy(onehot_labels = one_hot_labels, logits = end_points['Logits_1'])
-    loss_2 = tf.losses.softmax_cross_entropy(onehot_labels = one_hot_labels, logits = end_points['Logits_2'])
-    loss_3 = tf.losses.softmax_cross_entropy(onehot_labels = one_hot_labels, logits = end_points['Logits_3'])
+    loss_0 = tf.losses.softmax_cross_entropy(onehot_labels = one_hot_labels, logits = end_points['Logits'])
 
     c_loss = get_constraint_loss(end_points)
     
@@ -64,12 +52,6 @@ with tf.Graph().as_default() as graph:
 
     tf.summary.scalar('learning_rate', lr)
     tf.summary.scalar('loss_0', loss_0)
-    tf.summary.scalar('loss_1', loss_1)
-    tf.summary.scalar('loss_2', loss_2)
-    tf.summary.scalar('loss_3', loss_3)
-    tf.summary.scalar('accuracy_0', accuracy_0)
-    tf.summary.scalar('accuracy_0', accuracy_0)
-    tf.summary.scalar('accuracy_0', accuracy_0)
     tf.summary.scalar('accuracy_0', accuracy_0)
     my_summary_op = tf.summary.merge_all()
 
@@ -78,25 +60,15 @@ with tf.Graph().as_default() as graph:
     second_train_vars = [var for var in all_vars if not var.name.startswith(group_vars)]
 
 
-    optimizer_1 = tf.train.AdamOptimizer(learning_rate = 5e-5)
+    optimizer_1 = tf.train.AdamOptimizer(learning_rate = 2e-4)
     train_op_1 = slim.learning.create_train_op(c_loss, optimizer_1, variables_to_train = first_train_vars)
 
     optimizer_2 = tf.train.AdamOptimizer(learning_rate = lr)
     train_op_2 = slim.learning.create_train_op(loss_0, optimizer_2 , variables_to_train = second_train_vars)
 
-    optimizer_3 = tf.train.AdamOptimizer(learning_rate = lr)
-    train_op_3 = slim.learning.create_train_op(loss_1, optimizer_3 , variables_to_train = second_train_vars)
-
-    optimizer_4 = tf.train.AdamOptimizer(learning_rate = lr)
-    train_op_4 = slim.learning.create_train_op(loss_2, optimizer_4 , variables_to_train = second_train_vars)
-
-    optimizer_5 = tf.train.AdamOptimizer(learning_rate = lr)
-    train_op_5 = slim.learning.create_train_op(loss_3, optimizer_5 , variables_to_train = second_train_vars)
-
-
     def train_step(sess, train_op, global_step, flag):
         start_time = time.time()
-        total_loss, global_step_count, _,_,_,_ = sess.run([train_op, global_step, metrics_op_0, metrics_op_1, metrics_op_2, metrics_op_3])
+        total_loss, global_step_count, _ = sess.run([train_op, global_step, metrics_op_0])
         time_elapsed = time.time() - start_time
 
         if flag == 2:
@@ -122,15 +94,11 @@ with tf.Graph().as_default() as graph:
 	        summaries = sess.run(my_summary_op)
 	        sv.summary_computed(sess, summaries)
 
-            if (step % 1000) > 100:
+            if (step % 2000) < 1000:
 
                 Loss_, _ = train_step(sess, train_op_1, sv.global_step, flag=1)
             else:
                 Loss_, _ = train_step(sess, train_op_2, sv.global_step, flag=2)
-                Loss_, _ = train_step(sess, train_op_3, sv.global_step, flag=2)
-                Loss_, _ = train_step(sess, train_op_4, sv.global_step, flag=2)
-                Loss_, _ = train_step(sess, train_op_5, sv.global_step, flag=2)
-
 
         logging.info('Finished training! Saving model to disk now.')
         sv.saver.save(sess, sv.save_path, global_step = sv.global_step)
